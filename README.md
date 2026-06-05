@@ -17,34 +17,36 @@ Result lands at `destination/my_project/` — the source folder name is always p
 
 ---
 
-## Install (pre-built binary)
+## Install
 
 ```bash
-curl -L https://github.com/vherolf/project-archiver/releases/latest/download/project-archiver \
-  -o ~/.local/bin/project-archiver && chmod +x ~/.local/bin/project-archiver
+curl -fsSL https://raw.githubusercontent.com/vherolf/project-archiver/main/install.sh | bash
 ```
 
-Then run it directly:
+This clones the repo to `~/.local/share/project-archiver`, creates a venv, installs all dependencies, and places a `project-archiver` launcher in `~/.local/bin`.
+
+**Update** — run the same command again at any time to pull the latest version:
 
 ```bash
-project-archiver -s ./projects/tet -d ~/Desktop/archive
+curl -fsSL https://raw.githubusercontent.com/vherolf/project-archiver/main/install.sh | bash
 ```
-
-> The binary still requires **ffmpeg** and **libmagic** to be installed on the system — see [System dependencies](#system-dependencies).
 
 ---
 
 ## System dependencies
 
+The installer handles Python packages. These must be present on the system:
+
 | Tool | Purpose | Install |
 |---|---|---|
-| `ffmpeg` | Video compression | `sudo apt install ffmpeg` |
+| `git` | Clone / update | `sudo apt install git` |
+| `ffmpeg` | Video compression + detection | `sudo apt install ffmpeg` |
 | `libmagic1` | MIME type detection | `sudo apt install libmagic1` |
 
 macOS:
 
 ```bash
-brew install ffmpeg libmagic
+brew install git ffmpeg libmagic
 ```
 
 ---
@@ -79,6 +81,20 @@ Creates `~/Desktop/archive/tet/` with the full internal structure preserved.
 
 ---
 
+## Build a standalone binary
+
+Builds a single self-contained executable using PyInstaller:
+
+```bash
+./build.sh
+```
+
+Output: `dist/project-archiver`
+
+Upload that file to a GitHub release to distribute it without requiring Python on the target machine. The binary still requires `ffmpeg` and `libmagic1` to be installed.
+
+---
+
 ## Run from source
 
 ```bash
@@ -87,21 +103,6 @@ cd project-archiver
 pip install -r requirements.txt
 python project-archiver.py -s <source> -d <destination>
 ```
-
----
-
-## Build a binary
-
-```bash
-pip install -r requirements-dev.txt
-./build.sh
-```
-
-Output binary: `dist/project-archiver`
-
-The script locates `libmagic.so` on the current system and bundles it into the binary. Requires `libmagic1` to be installed before building.
-
-Upload `dist/project-archiver` to a GitHub release to make the curl install oneliner work.
 
 ---
 
