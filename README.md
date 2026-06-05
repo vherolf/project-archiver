@@ -35,13 +35,13 @@ alias project-archiver='~/bin/project-archiver/venv/bin/python ~/bin/project-arc
 
 ## System dependencies
 
-The installer handles Python packages. These must be present on the system:
+The installer handles Python packages. These must be present on the system: `git`, `ffmpeg`, `libmagic1`.
 
-| Tool | Purpose | Install |
-|---|---|---|
-| `git` | Clone / update | `sudo apt install git` |
-| `ffmpeg` | Video compression + detection | `sudo apt install ffmpeg` |
-| `libmagic1` | MIME type detection | `sudo apt install libmagic1` |
+Linux:
+
+```bash
+sudo apt install git ffmpeg libmagic1
+```
 
 macOS:
 
