@@ -1,84 +1,176 @@
-#  analyse project
-#  move projec files except videos
-#  compress all video files to new location
-#  compare both projects locations old and archived
-
-from pathlib import Path
 import logging
-import magic # pip install python-magic
 import os
+import shutil
+import subprocess
 from dataclasses import dataclass
-from datetime import date
+from pathlib import Path
 
-# project-archiver.py location
+import magic  # pip install python-magic
+
 PWD = Path(__file__).parent.resolve()
 logger = logging.getLogger(__name__)
-logging.basicConfig(filename=Path(PWD,'project-archiver.log'), encoding='utf-8', level=logging.DEBUG,format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+logging.basicConfig(
+    filename=Path(PWD, "project-archiver.log"),
+    encoding="utf-8",
+    level=logging.DEBUG,
+    format="%(asctime)s %(message)s",
+    datefmt="%m/%d/%Y %I:%M:%S %p",
+)
 
-
-# define users home directory
-home = str(Path.home())
-# video input files (current directory)
-video_input_directory = Path.cwd()
-# video output directory
-video_output_directory = Path(home,'Desktop', 'archived_projects')
-Path(video_output_directory).mkdir(parents=True, exist_ok=True)
 
 @dataclass
-class Project():
-    name: str
-    #age: date
-    size: str
-    videos: int
-    nonvideos: int
+class Project:
+    name: str = ""
+    videos: int = 0
+    nonvideos: int = 0
+    errors: int = 0
 
     def total_files(self) -> int:
         return self.videos + self.nonvideos
 
-project = Project(name='', size=0, videos=0, nonvideos=0)
+
+def _check_ffmpeg():
+    for tool in ("ffmpeg", "ffprobe"):
+        result = subprocess.run([tool, "-version"], capture_output=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"{tool} not found — install ffmpeg before running this tool")
 
 
-# test if file is a video
-def test_mimetype(file):
+def _has_video_stream(file_path: Path) -> bool:
+    # ffprobe returns "video" on stdout when a video stream exists
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=codec_type",
+            "-of", "csv=p=0",
+            str(file_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "video"
+
+
+def _is_video(file_path: Path) -> bool:
     mime = magic.Magic(mime=True)
-    return mime.from_file(file)
+    if mime.from_file(str(file_path)).startswith("video"):
+        return True
+    # libmagic misidentifies some formats (AVCHD .mts/.m2ts, MPEG-TS, VOB, etc.)
+    # as application/octet-stream — fall back to ffprobe stream inspection
+    return _has_video_stream(file_path)
 
-def rsync_project_files(directory):
-    file_count, dir_count, video_count = 0,0,0
-    for root, dirs, files in os.walk(directory):
-        dir_count += len(dirs)
-        file_count += len(files)
+
+def _compress_video(src: Path, dst: Path, crf: int) -> Path:
+    # H.265 output always in .mp4 container
+    dst = dst.with_suffix(".mp4")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        ["ffmpeg", "-i", str(src), "-vcodec", "libx265", "-crf", str(crf), "-y", str(dst)],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.decode(errors="replace").strip())
+    return dst
+
+
+def _copy_file(src: Path, dst: Path) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(src, dst)
+
+
+def _human_size(size_bytes: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if size_bytes < 1024:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f} TB"
+
+
+def _dir_stats(path: Path) -> tuple[int, int]:
+    files = [f for f in path.rglob("*") if f.is_file()]
+    return len(files), sum(f.stat().st_size for f in files)
+
+
+def archive_project(source: Path, destination: Path, crf: int = 28) -> Project:
+    project = Project(name=source.name)
+
+    for root, _, files in os.walk(source):
+        root_path = Path(root)
+        rel = root_path.relative_to(source)
+
         for file in files:
-            mimetype = test_mimetype(Path(root,file))
-            if mimetype.startswith("video"):
-                print(Path(root,file))
-                print(mimetype)
-                project.videos = project.videos + 1
-                pass
-            else:
-                print(Path(video_output_directory,root,file))
-                print(mimetype)
-                project.nonvideos = project.nonvideos + 1
-                #subprocess.call(['rsync', '-av', Path(root,file), Path(video_output_directory,root,file)])
+            src_file = root_path / file
+            dst_file = destination / rel / file
+
+            try:
+                if _is_video(src_file):
+                    print(f"  [VIDEO] {src_file.name}")
+                    out = _compress_video(src_file, dst_file, crf)
+                    project.videos += 1
+                    logger.info("compressed video: %s -> %s", src_file, out)
+                else:
+                    print(f"  [COPY]  {src_file.name}")
+                    _copy_file(src_file, dst_file)
+                    project.nonvideos += 1
+                    logger.info("copied: %s -> %s", src_file, dst_file)
+            except Exception as exc:
+                project.errors += 1
+                print(f"  [ERROR] {src_file.name}: {exc}")
+                logger.error("failed %s: %s", src_file, exc)
+
+    return project
 
 
-def main(video_input_directory=video_input_directory):
-    rsync_project_files(video_input_directory)
-    #statistics(video_input_directory)
-    #statistics(video_output_directory)
-    print(project, project.total_files())
+def statistics(source: Path, destination: Path) -> None:
+    src_count, src_size = _dir_stats(source)
+    dst_count, dst_size = _dir_stats(destination)
+    reduction = (1 - dst_size / src_size) * 100 if src_size else 0
 
-if __name__ == '__main__':
+    print("\n--- Statistics ---")
+    print(f"Source:      {src_count} files  {_human_size(src_size)}")
+    print(f"Destination: {dst_count} files  {_human_size(dst_size)}")
+    if reduction > 0:
+        print(f"Size saved:  {reduction:.1f}%")
+
+
+def main(source_directory: str, destination_directory: str, crf: int = 28) -> None:
+    source = Path(source_directory).expanduser().resolve()
+    destination = Path(destination_directory).expanduser().resolve() / source.name
+
+    if not source.exists():
+        print(f"Error: source '{source}' does not exist")
+        return
+
+    _check_ffmpeg()
+    destination.mkdir(parents=True, exist_ok=True)
+
+    print(f"Source:      {source}")
+    print(f"Destination: {destination}")
+    print(f"Video CRF:   {crf} (H.265)\n")
+    logger.info("started: %s -> %s", source, destination)
+
+    project = archive_project(source, destination, crf)
+
+    print(
+        f"\nDone: {project.videos} videos compressed, "
+        f"{project.nonvideos} files copied, "
+        f"{project.errors} errors"
+    )
+    logger.info("finished: %s", project)
+
+    statistics(source, destination)
+
+
+if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--source_directory")
-    parser.add_argument("-d", "--destination_directory")
-    args = parser.parse_args()
-    
-    #logger.info('started:')
 
-    if args.source_directory:
-        main(video_input_directory= args.source_directory)
-    else:
-        main(video_input_directory = video_input_directory)
-    
+    parser = argparse.ArgumentParser(
+        description="Archive a project: copy non-video files as-is, compress videos with H.265"
+    )
+    parser.add_argument("-s", "--source_directory", required=True, help="Source project directory")
+    parser.add_argument("-d", "--destination_directory", required=True, help="Destination archive directory")
+    parser.add_argument("--crf", type=int, default=28, help="H.265 CRF quality (lower = better, default 28)")
+    args = parser.parse_args()
+
+    main(args.source_directory, args.destination_directory, args.crf)
