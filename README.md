@@ -23,12 +23,24 @@ Result lands at `destination/my_project/` — the source folder name is always p
 curl -fsSL https://raw.githubusercontent.com/vherolf/project-archiver/main/install.sh | bash
 ```
 
-This clones the repo to `~/.local/share/project-archiver`, creates a venv, installs all dependencies, and places a `project-archiver` launcher in `~/.local/bin`.
+This clones the repo to `~/bin/project-archiver/`, creates a venv inside it, and installs all dependencies.
 
-**Update** — run the same command again at any time to pull the latest version:
+**Update** — run the same command again at any time to pull the latest version and reinstall:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vherolf/project-archiver/main/install.sh | bash
+```
+
+After install, run with:
+
+```bash
+~/bin/project-archiver/venv/bin/python ~/bin/project-archiver/project-archiver.py -s <source> -d <destination>
+```
+
+Or add a permanent alias to your shell profile (`~/.bashrc` / `~/.zshrc`):
+
+```bash
+alias project-archiver='~/bin/project-archiver/venv/bin/python ~/bin/project-archiver/project-archiver.py'
 ```
 
 ---
