@@ -7,7 +7,8 @@ INSTALL_DIR="$HOME/bin/project-archiver"
 # Clone or update
 if [ -d "$INSTALL_DIR/.git" ]; then
     echo "Updating project-archiver..."
-    git -C "$INSTALL_DIR" pull
+    git -C "$INSTALL_DIR" fetch origin
+    git -C "$INSTALL_DIR" reset --hard origin/main
 else
     echo "Installing project-archiver..."
     mkdir -p "$HOME/bin"
