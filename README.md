@@ -87,6 +87,7 @@ project-archiver -s <source> -d <destination> [--crf <value>]
 | `-s`, `--source_directory` | Project folder to archive (required) |
 | `-d`, `--destination_directory` | Parent folder for the archive (required) |
 | `--crf` | H.265 quality, 0–51, lower = better (default: `28`) |
+| `-n`, `--dry-run` | Show what would be done without writing any files |
 
 ### Example
 

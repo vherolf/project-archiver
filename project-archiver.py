@@ -92,7 +92,7 @@ def _dir_stats(path: Path) -> tuple[int, int]:
     return len(files), sum(f.stat().st_size for f in files)
 
 
-def archive_project(source: Path, destination: Path, crf: int = 28) -> Project:
+def archive_project(source: Path, destination: Path, crf: int = 28, dry_run: bool = False) -> Project:
     project = Project(name=source.name)
 
     for root, _, files in os.walk(source):
@@ -105,15 +105,18 @@ def archive_project(source: Path, destination: Path, crf: int = 28) -> Project:
 
             try:
                 if _is_video(src_file):
-                    print(f"  [VIDEO] {src_file.name}")
-                    out = _compress_video(src_file, dst_file, crf)
+                    out = dst_file.with_suffix(".mp4")
+                    print(f"  [VIDEO] {src_file}  ->  {out}")
+                    if not dry_run:
+                        out = _compress_video(src_file, dst_file, crf)
+                        logger.info("compressed video: %s -> %s", src_file, out)
                     project.videos += 1
-                    logger.info("compressed video: %s -> %s", src_file, out)
                 else:
-                    print(f"  [COPY]  {src_file.name}")
-                    _copy_file(src_file, dst_file)
+                    print(f"  [COPY]  {src_file}  ->  {dst_file}")
+                    if not dry_run:
+                        _copy_file(src_file, dst_file)
+                        logger.info("copied: %s -> %s", src_file, dst_file)
                     project.nonvideos += 1
-                    logger.info("copied: %s -> %s", src_file, dst_file)
             except Exception as exc:
                 project.errors += 1
                 print(f"  [ERROR] {src_file.name}: {exc}")
@@ -134,7 +137,7 @@ def statistics(source: Path, destination: Path) -> None:
         print(f"Size saved:  {reduction:.1f}%")
 
 
-def main(source_directory: str, destination_directory: str, crf: int = 28) -> None:
+def main(source_directory: str, destination_directory: str, crf: int = 28, dry_run: bool = False) -> None:
     source = Path(source_directory).expanduser().resolve()
     destination = Path(destination_directory).expanduser().resolve() / source.name
 
@@ -143,23 +146,31 @@ def main(source_directory: str, destination_directory: str, crf: int = 28) -> No
         return
 
     _check_ffmpeg()
-    destination.mkdir(parents=True, exist_ok=True)
 
     print(f"Source:      {source}")
     print(f"Destination: {destination}")
-    print(f"Video CRF:   {crf} (H.265)\n")
-    logger.info("started: %s -> %s", source, destination)
+    print(f"Video CRF:   {crf} (H.265)")
+    if dry_run:
+        print("Mode:        DRY RUN — no files will be written")
+    print()
+    logger.info("started%s: %s -> %s", " (dry-run)" if dry_run else "", source, destination)
 
-    project = archive_project(source, destination, crf)
+    if not dry_run:
+        destination.mkdir(parents=True, exist_ok=True)
 
+    project = archive_project(source, destination, crf, dry_run)
+
+    verb = "would compress" if dry_run else "compressed"
+    prefix = "(dry-run) " if dry_run else ""
     print(
-        f"\nDone: {project.videos} videos compressed, "
-        f"{project.nonvideos} files copied, "
+        f"\n{prefix}{project.videos} videos {verb}, "
+        f"{project.nonvideos} files {'would copy' if dry_run else 'copied'}, "
         f"{project.errors} errors"
     )
-    logger.info("finished: %s", project)
+    logger.info("finished%s: %s", " (dry-run)" if dry_run else "", project)
 
-    statistics(source, destination)
+    if not dry_run:
+        statistics(source, destination)
 
 
 if __name__ == "__main__":
@@ -171,6 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("-s", "--source_directory", required=True, help="Source project directory")
     parser.add_argument("-d", "--destination_directory", required=True, help="Destination archive directory")
     parser.add_argument("--crf", type=int, default=28, help="H.265 CRF quality (lower = better, default 28)")
+    parser.add_argument("-n", "--dry-run", action="store_true", help="Show what would be done without writing any files")
     args = parser.parse_args()
 
-    main(args.source_directory, args.destination_directory, args.crf)
+    main(args.source_directory, args.destination_directory, args.crf, args.dry_run)
