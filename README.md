@@ -17,27 +17,15 @@ Result lands at `destination/my_project/` — the source folder name is always p
 
 ---
 
-## Install
+## Quick Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vherolf/project-archiver/main/install.sh | bash
 ```
 
-This clones the repo to `~/bin/project-archiver/`, creates a venv inside it, and installs all dependencies.
+Clones to `~/bin/project-archiver/`, creates a venv, installs dependencies. Run again to update.
 
-**Update** — run the same command again at any time to pull the latest version and reinstall:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vherolf/project-archiver/main/install.sh | bash
-```
-
-After install, run with:
-
-```bash
-~/bin/project-archiver/venv/bin/python ~/bin/project-archiver/project-archiver.py -s <source> -d <destination>
-```
-
-Or add a permanent alias to your shell profile (`~/.bashrc` / `~/.zshrc`):
+Add to `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 alias project-archiver='~/bin/project-archiver/venv/bin/python ~/bin/project-archiver/project-archiver.py'
@@ -59,6 +47,31 @@ macOS:
 
 ```bash
 brew install git ffmpeg libmagic
+```
+
+---
+
+## Build a standalone binary
+
+Builds a single self-contained executable using PyInstaller:
+
+```bash
+./build.sh
+```
+
+Output: `dist/project-archiver`
+
+Upload that file to a GitHub release to distribute it without requiring Python on the target machine. The binary still requires `ffmpeg` and `libmagic1` to be installed.
+
+---
+
+## Run from source
+
+```bash
+git clone https://github.com/vherolf/project-archiver.git
+cd project-archiver
+pip install -r requirements.txt
+python project-archiver.py -s <source> -d <destination>
 ```
 
 ---
@@ -90,31 +103,6 @@ Creates `~/Desktop/archive/tet/` with the full internal structure preserved.
 | 18–22 | High quality, larger files |
 | 28 | Default — good balance |
 | 32–38 | Smaller files, visible loss |
-
----
-
-## Build a standalone binary
-
-Builds a single self-contained executable using PyInstaller:
-
-```bash
-./build.sh
-```
-
-Output: `dist/project-archiver`
-
-Upload that file to a GitHub release to distribute it without requiring Python on the target machine. The binary still requires `ffmpeg` and `libmagic1` to be installed.
-
----
-
-## Run from source
-
-```bash
-git clone https://github.com/vherolf/project-archiver.git
-cd project-archiver
-pip install -r requirements.txt
-python project-archiver.py -s <source> -d <destination>
-```
 
 ---
 
