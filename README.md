@@ -1,6 +1,9 @@
-# project-archiver
+# Project Archiver
 
-Archives a project folder to a new location. Non-video files are copied as-is. Video files are re-encoded to H.265 before copying, preserving the original directory structure.
+Archives a project folder to a new location.
+* Non-video files are copied as-is.
+* Video files are re-encoded to H.265 before copying
+* preserves the original directory structure.
 
 ## What it does
 
